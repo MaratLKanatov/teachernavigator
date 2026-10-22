@@ -142,24 +142,239 @@
     }).join('') + '</ol>';
   }
 
+  
+  function getGoogleDriveFileId(url) {
+    const value = String(url || '');
+
+    const patterns = [
+      /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/,
+      /drive\.google\.com\/uc\?(?:[^#]*&)?id=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const pattern of patterns) {
+      const match = value.match(pattern);
+      if (match) return match[1];
+    }
+
+    return null;
+  }
+
+  function getGoogleDrivePreviewUrl(url) {
+    const fileId = getGoogleDriveFileId(url);
+
+    return fileId
+      ? 'https://drive.google.com/file/d/' + fileId + '/preview'
+      : safeResourceUrl(url);
+  }
+
+  function getGoogleDriveImageUrl(url) {
+    const fileId = getGoogleDriveFileId(url);
+
+    return fileId
+      ? 'https://drive.google.com/uc?export=view&id=' + fileId
+      : safeResourceUrl(url);
+  }
+
+  function getGoogleDriveAudioUrl(url) {
+    const fileId = getGoogleDriveFileId(url);
+
+    return fileId
+      ? 'https://drive.google.com/uc?export=download&id=' + fileId
+      : safeResourceUrl(url);
+  }
+
+  function getYouTubeVideoId(url) {
+    const value = String(url || '');
+
+    const match = value.match(
+      /(?:youtube\.com\/(?:watch\?.*?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+    );
+
+    return match ? match[1] : null;
+  }
+
+  
   function renderExamples(tool) {
     const toolExamples = examples.filter(function (example) {
-      return example && String(example.toolId) === String(tool.id) && (example.title || example.description || example.url);
+      return example &&
+        String(example.toolId) === String(tool.id) &&
+        (example.title || example.description || example.url);
     });
-    if (!toolExamples.length) return '<p class="section-empty">Примеры и материалы пока не добавлены.</p>';
-    return '<ul class="examples-list">' + toolExamples.map(function (example) {
-      const title = String(example.title || 'Материал').trim();
-      const description = String(example.description || '').trim();
-      const type = String(example.type || '').trim();
-      const url = safeResourceUrl(example.url);
-      return '<li class="example-item">' +
-        '<h3 class="example-title">' + escapeHtml(title) + '</h3>' +
-        (description ? '<p class="example-description">' + escapeHtml(description) + '</p>' : '') +
-        (type ? '<span class="example-meta">' + escapeHtml(type) + '</span>' : '') +
-        (url ? '<a class="example-link" href="' + escapeHtml(url) + '"' + (/^https?:\/\//i.test(url) ? ' target="_blank" rel="noopener noreferrer"' : '') + '>Открыть материал ↗</a>' : '') +
-      '</li>';
-    }).join('') + '</ul>';
+
+    // Видео YouTube
+    const videos = (
+      Array.isArray(tool.resourceVideoUrl)
+        ? tool.resourceVideoUrl
+        : tool.resourceVideoUrl
+          ? [tool.resourceVideoUrl]
+          : []
+    ).map(function (url, index) {
+      return {
+        title: 'Видео ' + (index + 1),
+        url: url,
+        type: 'video'
+      };
+    });
+
+    // Изображения, PDF и аудио
+    const references = (
+      Array.isArray(tool.resourceReferences)
+        ? tool.resourceReferences
+        : []
+    ).map(function (reference) {
+      const url = String(reference.url || '');
+      let type = String(reference.type || '').toLowerCase();
+
+      // Определяем тип по расширению, если он не задан
+      if (!type) {
+        if (/\.pdf(?:$|[?#])/i.test(url)) {
+          type = 'pdf';
+        } else if (/\.mp3(?:$|[?#])/i.test(url)) {
+          type = 'audio';
+        } else if (/\.(?:jpg|jpeg|png|gif|webp)(?:$|[?#])/i.test(url)) {
+          type = 'image';
+        }
+      }
+
+      return {
+        title: reference.title || 'Материал',
+        description: reference.description || '',
+        url: url,
+        type: type
+      };
+    });
+
+    const allExamples = toolExamples.concat(videos, references)
+      .filter(function (item) {
+        return safeResourceUrl(item.url);
+      });
+
+    if (!allExamples.length) {
+      return '<p class="section-empty">Примеры и материалы пока не добавлены.</p>';
+    }
+
+    return '<ul class="examples-list">' +
+      allExamples.map(function (example) {
+        const title = String(example.title || 'Материал').trim();
+        const description = String(example.description || '').trim();
+        const type = String(example.type || '').toLowerCase();
+        const url = safeResourceUrl(example.url);
+
+        let content = '';
+
+        // YouTube
+        if (type === 'video') {
+          const videoId = getYouTubeVideoId(url);
+
+          if (videoId) {
+            content =
+              '<div class="example-video">' +
+                '<iframe src="https://www.youtube-nocookie.com/embed/' +
+                  escapeHtml(videoId) +
+                '" title="' + escapeHtml(title) +
+                '" loading="lazy" allowfullscreen></iframe>' +
+              '</div>';
+          }
+        }
+
+        // Изображения, включая Google Drive
+        else if (type === 'image') {
+          const imageUrl = getGoogleDriveImageUrl(url);
+
+          content =
+            '<a class="example-image-link" href="' +
+              escapeHtml(url) +
+              '" target="_blank" rel="noopener noreferrer">' +
+              '<img class="example-image" src="' +
+                escapeHtml(imageUrl) +
+              '" alt="' + escapeHtml(title) +
+              '" loading="lazy">' +
+            '</a>';
+        }
+
+        // PDF, включая Google Drive
+        else if (type === 'pdf') {
+          const pdfUrl = getGoogleDriveFileId(url)
+            ? getGoogleDrivePreviewUrl(url)
+            : url;
+
+          content =
+            '<div class="example-pdf">' +
+              '<iframe src="' + escapeHtml(pdfUrl) +
+              '" title="' + escapeHtml(title) +
+              '" loading="lazy"></iframe>' +
+              '<a class="example-link" href="' +
+                escapeHtml(url) +
+              '" target="_blank" rel="noopener noreferrer">' +
+                'Открыть PDF ↗' +
+              '</a>' +
+            '</div>';
+        }
+
+        // MP3, включая Google Drive
+        else if (type === 'audio' || type === 'mp3') {
+          const audioUrl = getGoogleDriveAudioUrl(url);
+
+          content =
+            '<div class="example-audio">' +
+              '<audio controls preload="none">' +
+                '<source src="' + escapeHtml(audioUrl) +
+                '" type="audio/mpeg">' +
+                'Ваш браузер не поддерживает аудио.' +
+              '</audio>' +
+              '<a class="example-link" href="' +
+                escapeHtml(url) +
+              '" target="_blank" rel="noopener noreferrer">' +
+                'Открыть аудиофайл ↗' +
+              '</a>' +
+            '</div>';
+        }
+
+        // Остальные материалы — обычная ссылка
+        
+        if (!content) {
+          if (type === 'link') {
+            content =
+              '<a class="example-link example-external-link" href="' +
+                escapeHtml(url) +
+                '" target="_blank" rel="noopener noreferrer">' +
+                '<span>' + escapeHtml(title) + '</span>' +
+                '<span aria-hidden="true"> ↗</span>' +
+              '</a>';
+          } else {
+            content =
+              (type
+                ? '<span class="example-meta">' +
+                    escapeHtml(type) +
+                  '</span>'
+                : '') +
+              '<a class="example-link" href="' +
+                escapeHtml(url) + '"' +
+                (/^https?:\/\//i.test(url)
+                  ? ' target="_blank" rel="noopener noreferrer"'
+                  : '') +
+              '>Открыть материал ↗</a>';
+          }
+        }
+
+
+        return '<li class="example-item">' +
+         // '<h3 class="example-title">' +
+         //   escapeHtml(title) +
+         // '</h3>' +
+          (description
+            ? '<p class="example-description">' +
+                escapeHtml(description) +
+              '</p>'
+            : '') +
+          content +
+        '</li>';
+      }).join('') +
+    '</ul>';
   }
+
+
 
   function renderTool(tool) {
     const module = findById(modules, tool.moduleId);
