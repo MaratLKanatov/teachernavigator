@@ -703,7 +703,24 @@ window.NAVIGATOR_DATA.tools = [
 \t-После урока открыть раздел Reports или Scoresheet, чтобы проанализировать ответы отдельных учеников и общие результаты.
 \t-Выявить вопросы, в которых допущено больше всего ошибок, и запланировать повторение материала. 
     `,
-    resultCheckAfter: ""
+    resultCheckAfter: "",
+    resourceReferences: [
+      {
+        title: "",
+        url: "assets/plickers1.jpeg",
+        type: "image"
+      },
+      {
+        title: "",
+        url: "assets/plickers2.jpeg",
+        type: "image"
+      },
+      {
+        title: "",
+        url: "assets/plickers3.jpeg",
+        type: "image"
+      }
+    ]
   },
   {
     id: "Kahoot!",
