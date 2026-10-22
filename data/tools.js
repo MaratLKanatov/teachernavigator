@@ -707,17 +707,17 @@ window.NAVIGATOR_DATA.tools = [
     resourceReferences: [
       {
         title: "",
-        url: "assets/plickers1.jpeg",
+        url: "https://maratlkanatov.github.io/teachernavigator/assets/plickers1.jpeg",
         type: "image"
       },
       {
         title: "",
-        url: "assets/plickers2.jpeg",
+        url: "https://maratlkanatov.github.io/teachernavigator/assets/plickers2.jpeg",
         type: "image"
       },
       {
         title: "",
-        url: "assets/plickers3.jpeg",
+        url: "https://maratlkanatov.github.io/teachernavigator/assets/plickers3.jpeg",
         type: "image"
       }
     ]
