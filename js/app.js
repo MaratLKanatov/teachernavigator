@@ -6,6 +6,35 @@
   const tools = Array.isArray(data.tools) ? data.tools : [];
   const examples = Array.isArray(data.examples) ? data.examples : [];
   const app = document.getElementById('app');
+  const DEFAULT_LANGUAGE = "kk";
+
+  function getLanguage() {
+    const savedLanguage = localStorage.getItem("navigator-language");
+
+    return savedLanguage === "ru" || savedLanguage === "kk"
+      ? savedLanguage
+      : DEFAULT_LANGUAGE;
+  }
+
+  let currentLanguage = getLanguage();
+
+  function setLanguage(language) {
+    if (language !== "kk" && language !== "ru") {
+      return;
+    }
+
+    currentLanguage = language;
+    localStorage.setItem("navigator-language", language);
+    window.location.reload();
+  }
+
+  function getLocalizedText(item, field) {
+    if (currentLanguage === "ru") {
+      return item[field + "Ru"] || item[field] || "";
+    }
+
+    return item[field] || "";
+  }
 
   function escapeHtml(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
@@ -44,7 +73,12 @@
   }
 
   function setTitle(title) {
-    document.title = title ? title + ' — Цифровой навигатор учителя' : 'Цифровой навигатор учителя';
+    if (currentLanguage === 'kk') {
+      const localized = UI_TRANSLATIONS[title] || title;
+      document.title = localized + ' — Мұғалімнің цифрлық навигаторы';
+    } else {
+      document.title = title ? title + ' — Цифровой навигатор учителя' : 'Цифровой навигатор учителя';
+    }
   }
 
   function breadcrumbs(items) {
@@ -71,8 +105,8 @@
     const cards = modules.map(function (module) {
       if (!module || !module.id || !module.name) return '';
       return '<a class="card" href="' + escapeHtml(routeUrl('module', module.id)) + '">' +
-        '<h2 class="card-title">' + escapeHtml(module.name) + '</h2>' +
-        descriptionOrEmpty(module.description, 'Описание пока не добавлено.') +
+        '<h2 class="card-title">' + escapeHtml(getLocalizedText(module, 'name')) + '</h2>' +
+        descriptionOrEmpty(getLocalizedText(module, 'description'), 'Описание пока не добавлено.') +
         '<span class="card-arrow" aria-hidden="true">→</span>' +
       '</a>';
     }).filter(Boolean).join('');
@@ -88,9 +122,9 @@
   }
 
   function renderModule(module) {
-    setTitle(module.name);
+    setTitle(getLocalizedText(module, 'name'));
     const moduleTools = tools.filter(function (tool) {
-      return tool && String(tool.moduleId) === String(module.id) && tool.id && tool.name;
+      return tool && String(tool.moduleId) === String(module.id) && tool.id && (tool.name || tool.nameRu);
     });
    
     
@@ -100,9 +134,9 @@
           '<span class="card-icon" aria-hidden="true">' +
             tool.logo +
           '</span>' +
-          '<h2 class="card-title">' + escapeHtml(tool.name) + '</h2>' +
+          '<h2 class="card-title">' + escapeHtml(getLocalizedText(tool, 'name')) + '</h2>' +
         '</div>' +
-        descriptionOrEmpty(tool.description, 'Описание пока не добавлено.') +
+        descriptionOrEmpty(getLocalizedText(tool, 'description'), 'Описание пока не добавлено.') +
         '<span class="card-arrow" aria-hidden="true">→</span>' +
       '</a>';
     }).join('');
@@ -110,12 +144,12 @@
 
     app.innerHTML = breadcrumbs([
       { label: 'Главная', href: 'index.html' },
-      { label: module.name }
+      { label: getLocalizedText(module, 'name') }
     ]) +
     '<section class="page-intro">' +
-      '<h1 class="page-heading">' + escapeHtml(module.name) + '</h1>' +
-      (module.description && String(module.description).trim()
-        ? '<p class="page-description">' + escapeHtml(module.description) + '</p>'
+      '<h1 class="page-heading">' + escapeHtml(getLocalizedText(module, 'name')) + '</h1>' +
+      (getLocalizedText(module, 'description') && String(getLocalizedText(module, 'description')).trim()
+        ? '<p class="page-description">' + escapeHtml(getLocalizedText(module, 'description')) + '</p>'
         : '<p class="page-description">Описание пока не добавлено.</p>') +
     '</section>' +
     '<section aria-labelledby="tools-heading">' +
@@ -127,16 +161,16 @@
 
   function renderSteps(steps) {
     const validSteps = Array.isArray(steps) ? steps.filter(function (step) {
-      return step && (String(step.title || '').trim() || String(step.description || '').trim());
+      return step && (String(getLocalizedText(step, 'title') || '').trim() || String(getLocalizedText(step, 'description') || '').trim());
     }) : [];
     if (!validSteps.length) return '<p class="section-empty">Инструкция пока не добавлена.</p>';
     return '<ol class="steps-list">' + validSteps.map(function (step, index) {
-      const title = String(step.title || '').trim();
-      const description = String(step.description || '').trim();
+      const title = String(getLocalizedText(step, 'title') || '').trim();
+      const description = String(getLocalizedText(step, 'description') || '').trim();
       return '<li class="step-item">' +
         '<div class="step-content">' +
-          '<h3 class="step-heading">' + escapeHtml(step.title) + '</h3>' +
-          '<p class="step-description">' + escapeHtml(step.description) + '</p>' +
+          '<h3 class="step-heading">' + escapeHtml(title) + '</h3>' +
+          '<p class="step-description">' + escapeHtml(description) + '</p>' +
         '</div>' +
       '</li>';
     }).join('') + '</ol>';
@@ -238,8 +272,8 @@
       }
 
       return {
-        title: reference.title || 'Материал',
-        description: reference.description || '',
+        title: getLocalizedText(reference, 'title') || 'Материал',
+        description: getLocalizedText(reference, 'description') || '',
         url: url,
         type: type
       };
@@ -379,11 +413,12 @@
   function renderTool(tool) {
     const module = findById(modules, tool.moduleId);
     if (!module) return renderNotFound();
-    setTitle(tool.name);
+    setTitle(getLocalizedText(tool, 'name'));
 
-    const title = escapeHtml(tool.name);
-    const tasks = tool.pedagogicalTasks && String(tool.pedagogicalTasks).trim() ? (() => {
-      const lines = String(tool.pedagogicalTasks)
+    const title = escapeHtml(getLocalizedText(tool, 'name'));
+    const pedagogicalTasks = getLocalizedText(tool, 'pedagogicalTasks');
+    const tasks = pedagogicalTasks && String(pedagogicalTasks).trim() ? (() => {
+      const lines = String(pedagogicalTasks)
         .split(/\r?\n/)
         .map(line => line.trim())
         .filter(Boolean);
@@ -405,8 +440,11 @@
       ? '<a class="external-link" href="' + escapeHtml(officialUrl) + '" target="_blank" rel="noopener noreferrer">Перейти к инструменту <span aria-hidden="true">↗</span></a>'
       : '<p class="section-empty">Ссылка на платформу пока не добавлена.</p>';
     
-    const check = tool.resultCheck && String(tool.resultCheck).trim() ? (() => {
-      const lines = String(tool.resultCheck)
+    const resultCheck = getLocalizedText(tool, 'resultCheck');
+    const resultCheckBefore = getLocalizedText(tool, 'resultCheckBefore');
+    const resultCheckAfter = getLocalizedText(tool, 'resultCheckAfter');
+    const check = resultCheck && String(resultCheck).trim() ? (() => {
+      const lines = String(resultCheck)
         .split(/\r?\n/)
         .map(line => line.trim())
         .filter(Boolean);
@@ -417,20 +455,20 @@
         .map(line => line.replace(/^-\s*/, ''));
 
       return '<div class="section-copy">' +
-          '<p>' + (tool.resultCheckBefore || " ") + '</p>' +
+          '<p>' + escapeHtml(resultCheckBefore || '') + '</p>' +
         (intro ? '<p>' + escapeHtml(intro) + '</p>' : '') +
         (items.length
           ? '<ul>' + items.map(item => '<li>' + escapeHtml(item) + '</li>').join('') + '</ul>'
           : '') +
-          '<p>' + (tool.resultCheckAfter || " ") + '</p>' +
+          '<p>' + escapeHtml(resultCheckAfter || '') + '</p>' +
         '</div>';
     })() : '<p class="section-empty">Рекомендации по проверке результата пока не добавлены.</p>';
 
 
     app.innerHTML = breadcrumbs([
       { label: 'Главная', href: 'index.html' },
-      { label: module.name, href: routeUrl('module', module.id) },
-      { label: tool.name }
+      { label: getLocalizedText(module, 'name'), href: routeUrl('module', module.id) },
+      { label: getLocalizedText(tool, 'name') }
     ]) +
     '<section class="page-intro">' +
       '<h1 class="page-heading">' + title + '</h1>' +
@@ -438,8 +476,8 @@
     '<div class="tool-content">' +
       '<section class="tool-section" aria-labelledby="tool-name-heading">' +
         '<h2 id="tool-name-heading">1. Название платформы</h2>' +
-        (tool.description2 && String(tool.description2).trim()
-          ? '<p class="section-copy">' + escapeHtml(tool.description2) + '</p>'
+        (getLocalizedText(tool, 'description2') && String(getLocalizedText(tool, 'description2')).trim()
+          ? '<p class="section-copy">' + escapeHtml(getLocalizedText(tool, 'description2')) + '</p>'
           : '<p class="section-empty">Описание инструмента пока не добавлено.</p>') +
       '</section>' +
       '<section class="tool-section" aria-labelledby="tasks-heading">' +
@@ -458,7 +496,7 @@
         '<h2 id="examples-heading">6. Примеры и готовые материалы</h2>' + renderExamples(tool) +
       '</section>' +
     '</div>' +
-    '<a class="back-link" href="' + escapeHtml(routeUrl('module', module.id)) + '"><span aria-hidden="true">←</span> К модулю «' + escapeHtml(module.name) + '»</a>';
+    '<a class="back-link" href="' + escapeHtml(routeUrl('module', module.id)) + '"><span aria-hidden="true">←</span> К модулю «' + escapeHtml(getLocalizedText(module, 'name')) + '»</a>';
   }
 
   function renderNotFound() {
@@ -469,6 +507,101 @@
       '<p class="page-description">Возможно, ссылка устарела или такая страница ещё не создана.</p>' +
       '<a class="back-link" href="index.html"><span aria-hidden="true">←</span> Вернуться на главную</a>' +
     '</section>';
+  }
+
+
+  const UI_TRANSLATIONS = {
+    "Цифровой навигатор учителя": "Мұғалімнің цифрлық навигаторы",
+    "Главная": "Басты бет",
+    "Модули": "Модульдер",
+    "Выберите педагогическую задачу и найдите подходящие цифровые инструменты для её решения.": "Педагогикалық міндетті таңдап, оны шешуге арналған цифрлық құралдарды табыңыз.",
+    "Описание пока не добавлено.": "Сипаттама әзірге қосылмаған.",
+    "Модули пока не добавлены.": "Модульдер әзірге қосылмаған.",
+    "Цифровые инструменты": "Цифрлық құралдар",
+    "В этом модуле пока нет инструментов.": "Бұл модульде әзірге құралдар жоқ.",
+    "На главную": "Басты бетке",
+    "Инструкция пока не добавлена.": "Нұсқаулық әзірге қосылмаған.",
+    "Материал": "Материал",
+    "Примеры и материалы пока не добавлены.": "Мысалдар мен материалдар әзірге қосылмаған.",
+    "Открыть PDF ↗": "PDF ашу ↗",
+    "Ваш браузер не поддерживает аудио.": "Браузеріңіз аудионы қолдамайды.",
+    "Открыть аудиофайл ↗": "Аудиофайлды ашу ↗",
+    "Открыть материал ↗": "Материалды ашу ↗",
+    "Педагогические задачи пока не добавлены.": "Педагогикалық міндеттер әзірге қосылмаған.",
+    "Перейти к инструменту ": "Құралға өту ",
+    "Ссылка на платформу пока не добавлена.": "Платформаға сілтеме әзірге қосылмаған.",
+    "Рекомендации по проверке результата пока не добавлены.": "Нәтижені тексеру бойынша ұсыныстар әзірге қосылмаған.",
+    "Главная": "Басты бет",
+    "Название платформы": "Платформа атауы",
+    "1. Название платформы": "1. Платформа атауы",
+    "2. Педагогические задачи": "2. Педагогикалық міндеттер",
+    "3. Ссылка на платформу": "3. Платформаға сілтеме",
+    "4. Алгоритм действий": "4. Әрекеттер алгоритмі",
+    "5. Проверка и оценка результата": "5. Нәтижені тексеру және бағалау",
+    "6. Примеры и готовые материалы": "6. Мысалдар мен дайын материалдар",
+    "Педагогические задачи": "Педагогикалық міндеттер",
+    "Ссылка на платформу": "Платформаға сілтеме",
+    "Алгоритм действий": "Әрекеттер алгоритмі",
+    "Проверка и оценка результата": "Нәтижені тексеру және бағалау",
+    "Примеры и готовые материалы": "Мысалдар мен дайын материалдар",
+    "Описание инструмента пока не добавлено.": "Құрал сипаттамасы әзірге қосылмаған.",
+    "Страница не найдена": "Бет табылмады",
+    "Возможно, ссылка устарела или такая страница ещё не создана.": "Сілтеме ескірген немесе бұл бет әлі жасалмаған болуы мүмкін.",
+    "Вернуться на главную": "Басты бетке оралу",
+    "Навигационная цепочка": "Навигация жолы",
+    "К модулю": "Модульге өту",
+    "Видео ": "Бейне "
+  };
+
+  function applyInterfaceLanguage() {
+    const existing = document.getElementById('language-switcher');
+    if (existing) existing.remove();
+
+    const switcher = document.createElement('div');
+    switcher.id = 'language-switcher';
+    switcher.className = 'language-switcher';
+    switcher.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;gap:6px;margin:0 0 16px;font-size:14px;';
+    switcher.setAttribute('aria-label', 'Тілді таңдау');
+    switcher.innerHTML =
+      '<button type="button" data-language="kk" ' +
+        (currentLanguage === 'kk' ? 'aria-pressed="true" ' : 'aria-pressed="false" ') +
+        'class="language-option" style="cursor:pointer;padding:6px 10px;border:1px solid #ccc;border-radius:6px;background:' + (currentLanguage === 'kk' ? '#eee' : '#fff') + '">Қазақша</button>' +
+      '<span aria-hidden="true"> / </span>' +
+      '<button type="button" data-language="ru" ' +
+        (currentLanguage === 'ru' ? 'aria-pressed="true" ' : 'aria-pressed="false" ') +
+        'class="language-option" style="cursor:pointer;padding:6px 10px;border:1px solid #ccc;border-radius:6px;background:' + (currentLanguage === 'ru' ? '#eee' : '#fff') + '">Русский</button>';
+
+    switcher.addEventListener('click', function (event) {
+      const button = event.target.closest('button[data-language]');
+      if (button) setLanguage(button.getAttribute('data-language'));
+    });
+    app.prepend(switcher);
+
+    if (currentLanguage === 'kk') {
+      const walker = document.createTreeWalker(app, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      console.log(nodes);
+      nodes.forEach(function (node) {
+        const original = node.nodeValue;
+        const trimmed = original.trim();
+        if (UI_TRANSLATIONS[trimmed]) {
+          node.nodeValue = original.replace(trimmed, UI_TRANSLATIONS[trimmed]);
+        }
+      });
+      app.querySelectorAll('[aria-label="Навигационная цепочка"]').forEach(function (el) {
+        el.setAttribute('aria-label', 'Навигация жолы');
+      });
+      document.querySelectorAll('a.back-link').forEach(function (link) {
+          link.childNodes.forEach(function (node) {
+              if (node.nodeType === Node.TEXT_NODE) {
+                  node.textContent = node.textContent.replace('К модулю', UI_TRANSLATIONS["К модулю"]);
+              }
+          });
+      });
+    }
+
+    document.documentElement.lang = currentLanguage;
   }
 
   function start() {
@@ -488,7 +621,7 @@
     }
     if (page === 'tool' && id) {
       const tool = findById(tools, id);
-      if (tool && tool.name) renderTool(tool);
+      if (tool && (tool.name || tool.nameRu)) renderTool(tool);
       else renderNotFound();
       return;
     }
@@ -496,4 +629,5 @@
   }
 
   start();
+  applyInterfaceLanguage();
 }());
